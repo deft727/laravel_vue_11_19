@@ -9,8 +9,86 @@ use App\Models\UploadFile;
 
 class APIController extends Controller
 {
+    public $_accessToken = '';
+    public $_tokenType = '';
+    public $workflows = [
+                'DOC' => '0000000000000004', // doc to pdf
+                'HTML' => '0000000006AE5CBE', // pdf to html
+                'PDF' => '0000000006AE5CC8', // html to pdf
+            ];
+    
     public function __construct()
     {
+        parent::__construct();
+    }
+
+    private function getToken() {
+        try {
+            $token_header = [
+                'Content-Type: application/x-www-form-urlencoded'
+            ];
+            $token_url = 'https://www.easypdfcloud.com/oauth2/token';
+            $method = 'POST';
+            $params = [
+                'grant_type' => env('PDFCLOUD_GRANT_TYPE'),
+                'client_id' => env('PDFCLOUD_CLIENT_ID'),
+                'client_secret' => env('PDFCLOUD_CLIENT_SECRET'),
+                'scope' => env('PDFCLOUD_SCOPE')
+            ];
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $token_url); // API endpoint
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $token_header);    
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+            // curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false); // Enable the @ prefix for uploading files
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
+            $body = curl_exec($ch);
+            curl_close($ch);
+    
+            $response = json_decode($body, true);
+            $this->_accessToken = $res_token['access_token'];
+            $this->_tokenType = $res_token['token_type'];
+            echo $this->_accessToken;
+            print_r($response);
+            exit;
+            return true;
+        } catch (\Throwable $th) {
+            throw new Throwable($th->getMessage());
+        }
+    }
+
+    private function callService($header, $url, $params, $method = 'POST', $requireToken = true) {
+        try {
+            if($requireToken && $this->_accessToken == '') {
+                // get token api
+                $this->getToken();
+            }
+            $ch = curl_init(); // Init curl
+            if($requireToken) {
+                $header = [''];
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $header);    
+            }
+            curl_setopt($ch, CURLOPT_URL, $url); // API endpoint
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            if($method != 'GET') {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+            }
+            // curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false); // Enable the @ prefix for uploading files
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
+            curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ":"); // Set the API key as the basic auth username
+            $body = curl_exec($ch);
+            curl_close($ch);
+    
+            $response = json_decode($body, true);
+            return $response;
+        } catch (\Throwable $th) {
+            $error = $th->getMessage();
+            if(strpos($error, 'WWW-Authenticate: Bearer') !== false) {
+                $this->getToken();
+            }else{
+                throw new Throwable($error);
+            }
+        }
     }
 
     public function uploadFile(Request $request) {

@@ -96,7 +96,7 @@
                 });
             },
             convertFile() {
-                this.message = "File uploading to ZamZar...";
+                this.message = "File uploading to easyPDF cloud...";
 
                 const formData = new FormData();
                 formData.append('uFileId', this.uFileId);
@@ -115,13 +115,13 @@
                 })
                 .catch(err => {
                     console.log(err);
-                    this.message = 'File uploading to Zamzar failed. Zamzar job not started. Try again to upload file.';
+                    this.message = 'File uploading to easyPDF cloud failed. easyPDF cloud job not started. Try again to upload file.';
                     this.isConverting = false;
                 });
             },
             checkJob() {
                 if (this.isCheckingJob) return;
-                this.message = "Checking Zamzar job is finished...";
+                this.message = "Checking easyPDF cloud job is finished...";
 
                 const formData = new FormData();
                 formData.append('uFileId', this.uFileId);
@@ -136,7 +136,6 @@
                         if (status == 'successful') {
                             clearInterval(this.timer);
                             this.timer = null;
-                            this.targetFiles = res.data.targetFiles;
                             this.downloadFile();
                         }
                     }
@@ -144,7 +143,7 @@
                 })
                 .catch(err => {
                     console.log(err);
-                    this.message = 'Zamzar job failed. Try again to upload file.';
+                    this.message = 'easyPDF cloud job failed. Try again to upload file.';
                     this.isConverting = false;
                     this.isCheckingJob = false;
                     clearInterval(this.timer);
@@ -153,21 +152,9 @@
             },
             async downloadFile() {
                 try {
-                    // this.message = 'Started downloading zamzar files to server...';
-                    // const promises = this.targetFiles.map(targetFile => {
-                        
-                    // });
-                    // await Promise.all(promises);
-                    // this.message = `Downloading zamzar files to server finished...`;
-                    // // this.splitHtmlFile();
-
-                    this.message = 'Started downloading zamzar files to server...';
-                    const targetFile = this.targetFiles[0];
-
+                    this.message = 'Started downloading easyPDF cloud files to server...';
                     const formData = new FormData();
                     formData.append('uFileId', this.uFileId);
-                    formData.append('targetFileId', targetFile['id']);
-                    formData.append('targetFileName', targetFile['name']);
                     fileDownload(formData)
                     .then(res => {
                         if (res.status == 200) {
@@ -179,10 +166,10 @@
                     .catch(err => {
                         console.log(err);
                     });
-                    this.message = `Downloading zamzar files to server finished...`;
+                    this.message = `Downloading easyPDF cloud files to server finished...`;
                 } catch (err) {
                     console.log(err);
-                    this.message = 'Downloading zamzar files to server failed. Try to upload file again.'
+                    this.message = 'Downloading easyPDF cloud files to server failed. Try to upload file again.'
                     this.isConverting = false;
                 }
             },

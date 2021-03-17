@@ -16,10 +16,11 @@ class APIController extends Controller
                 'HTML' => '0000000006AE5CBE', // pdf to html
                 'PDF' => '0000000006AE5CC8', // html to pdf
             ];
+    public $file_types = ['doc', 'docx', ];
     
     public function __construct()
     {
-        parent::__construct();
+        // $this->getToken();
     }
 
     private function getToken() {
@@ -29,35 +30,58 @@ class APIController extends Controller
             ];
             $token_url = 'https://www.easypdfcloud.com/oauth2/token';
             $method = 'POST';
-            $params = [
+            $params = array(
                 'grant_type' => env('PDFCLOUD_GRANT_TYPE'),
                 'client_id' => env('PDFCLOUD_CLIENT_ID'),
                 'client_secret' => env('PDFCLOUD_CLIENT_SECRET'),
                 'scope' => env('PDFCLOUD_SCOPE')
-            ];
+            );
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $token_url); // API endpoint
             curl_setopt($ch, CURLOPT_HTTPHEADER, $token_header);    
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+            // curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params, '', '&'));
             // curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false); // Enable the @ prefix for uploading files
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
             $body = curl_exec($ch);
             curl_close($ch);
     
             $response = json_decode($body, true);
-            $this->_accessToken = $res_token['access_token'];
-            $this->_tokenType = $res_token['token_type'];
-            echo $this->_accessToken;
-            print_r($response);
-            exit;
+            $this->_accessToken = $response['access_token'];
+            $this->_tokenType = $response['token_type'];
             return true;
-        } catch (\Throwable $th) {
-            throw new Throwable($th->getMessage());
+        } catch (Exception $th) {
+            throw new Exception($th->getMessage());
+        }
+    }
+    private function checkToken() {
+        try {
+            echo $this->_accessToken;
+            $token_header = [
+                'Authorization: Bearer ' . $this->_accessToken
+            ];
+            $token_url = 'https://api.easypdfcloud.com/v1/workflows';
+            $method = 'GET';
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $token_url); // API endpoint
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $token_header);    
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            // curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false); // Enable the @ prefix for uploading files
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
+            $body = curl_exec($ch);
+            curl_close($ch);
+    
+            $response = json_decode($body, true);
+            return true;
+        } catch (Exception $th) {
+            // echo $th->getMessage();
+            // print_r($th);
+            throw new Exception($th->getMessage());
         }
     }
 
-    private function callService($header, $url, $params, $method = 'POST', $requireToken = true) {
+    private function callService($url, $params, $method = 'POST', $requireToken = true, $header = []) {
         try {
             if($requireToken && $this->_accessToken == '') {
                 // get token api
@@ -65,7 +89,12 @@ class APIController extends Controller
             }
             $ch = curl_init(); // Init curl
             if($requireToken) {
-                $header = [''];
+                // check token
+                $this->checkToken();
+                $token_header = [
+                    'Authorization: Bearer ' . $this->_accessToken
+                ];
+                $header = array_merge($token_header, $header);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $header);    
             }
             curl_setopt($ch, CURLOPT_URL, $url); // API endpoint
@@ -81,12 +110,12 @@ class APIController extends Controller
     
             $response = json_decode($body, true);
             return $response;
-        } catch (\Throwable $th) {
+        } catch (Exception $th) {
             $error = $th->getMessage();
-            if(strpos($error, 'WWW-Authenticate: Bearer') !== false) {
+            if($requireToken && strpos($error, 'WWW-Authenticate: Bearer') !== false) {
                 $this->getToken();
             }else{
-                throw new Throwable($error);
+                throw new Exception($error);
             }
         }
     }
@@ -99,7 +128,6 @@ class APIController extends Controller
             $fileSize = $request->fileSize;
             $fromLang = $request->fromLang;
             $toLang = $request->toLang;
-
             $uploadFile = UploadFile::create([
                 'file_type' => $fileType,
                 'file_name' => $fileName,
@@ -114,7 +142,7 @@ class APIController extends Controller
                 'message' => 'File uploaded successfully to server',
                 'uFileId' => $uploadFile->id
             ], 200);
-        } catch (\Throwable $th) {
+        } catch (Exception $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);
@@ -131,25 +159,46 @@ class APIController extends Controller
                     'message' => 'File not exist on server'
                 ]);
             }
-            
-            $endpoint = "https://sandbox.zamzar.com/v1/jobs";
-            $apiKey = env('ZAMZAR_API_KEY');
-            $sourceFilePath = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
-            $targetFormat = "html5-1page";
 
+            $ext = pathinfo($uploadFile->file_name, PATHINFO_EXTENSION);
+            $job_type = $workflows['HTML'];
+            // if(in_array($ext, $this->file_types)) {
+
+            // }
+            $endpoint = "https://api.easypdfcloud.com/v1/workflows/$job_type/jobs";
+            $sourceFilePath = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
+            
             // Since PHP 5.5+ CURLFile is the preferred method for uploading files
             if(function_exists('curl_file_create')) {
                 $sourceFile = curl_file_create($sourceFilePath);
             } else {
                 $sourceFile = '@' . realpath($sourceFilePath);
             }
-
+            
+            $header = ['Content-Type: multipart/form-data'];
             $postData = array(
-                "source_file" => $sourceFile,
-                "target_format" => $targetFormat
+                "file" => $sourceFile,
+                "start" => true,
+                "test" => true
             );
-
-            $ch = curl_init(); // Init curl
+            
+            $response = $this->callService($endpoint, $postData, 'POST', true, $header);
+            if(isset($response['jobID'])) {
+                $uploadFile->job_id = $response['jobID'];
+                $uploadFile->status = 'initialising';
+                $uploadFile->save();
+                return response()->json([
+                    'message' => 'File converting started', //  on easyPDFCloud
+                    'jobId' => $response['jobID']
+                ]);
+            }else{
+                $uploadFile->status = 'initialize failed';
+                $uploadFile->save();
+                return response()->json([
+                    'message' => 'File converting failed'
+                ], 500);
+            }
+/*            $ch = curl_init(); // Init curl
             curl_setopt($ch, CURLOPT_URL, $endpoint); // API endpoint
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
             curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
@@ -175,11 +224,17 @@ class APIController extends Controller
                     'message' => 'File uploading to Zamzar failed'
                 ], 500);
             }
-        } catch (\Throwable $th) {
+            */
+        } catch (Exception $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);
         } 
+    }
+
+    private function getNewHtmlFilename($filename) {
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        return basename($filename, ".".$ext).'html';
     }
 
     public function checkJob(Request $request) {
@@ -187,39 +242,35 @@ class APIController extends Controller
             $uFileId = $request->uFileId;
             $jobId = $request->jobId;
           
-            $endpoint = "https://sandbox.zamzar.com/v1/jobs/$jobId";
-            $apiKey = env('ZAMZAR_API_KEY');
-
-            $ch = curl_init(); // Init curl
-            curl_setopt($ch, CURLOPT_URL, $endpoint); // API endpoint
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
-            curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ":"); // Set the API key as the basic auth username
-            $body = curl_exec($ch);
-            curl_close($ch);
-
-            $job = json_decode($body, true);
-
-            if ($job['status'] == 'successful') {
-                $uploadFile = UploadFile::find($uFileId);
-
-                if ($uploadFile) {
-                    $uploadFile->target_files = json_encode($job['target_files']);
-                    $uploadFile->status = 'successful';
-                    $uploadFile->save();
+            $endpoint = "https://api.easypdfcloud.com/v1/jobs/$jobId/event";
+            $response = $this->callService($endpoint, []);
+            if(isset($response['status'])) {
+                if ($response['status'] == 'completed') {
+                    $uploadFile = UploadFile::find($uFileId);
+    
+                    if ($uploadFile) {
+                        $uploadFile->target_files = $this->getNewHtmlFilename($uploadFile->file_name);
+                        $uploadFile->status = 'successful';
+                        $uploadFile->save();
+                    }
+    
+                    return response()->json([
+                        'message' => 'EasyPDFCloud job finished successfully',
+                        'status' => 'successful'
+                    ]);
+                } else {
+                    return response()->json([
+                        'message' => 'EasyPDFCloud job still doing ('.$response['progress'].'%)...',
+                        'status' => 'initialising'
+                    ]);
                 }
-
+            }else{
                 return response()->json([
-                    'message' => 'Zamzar job finished successfully',
-                    'status' => 'successful',
-                    'targetFiles' => $job['target_files']
-                ]);
-            } else {
-                return response()->json([
-                    'message' => 'Zamzar job still doing...',
+                    'message' => 'EasyPDFCloud job still doing...',
                     'status' => 'initialising'
                 ]);
             }
-        } catch (\Throwable $th) {
+        } catch (Exception $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);
@@ -239,8 +290,7 @@ class APIController extends Controller
                 mkdir($localDirname, 0755, true);
             }
 
-            $endpoint = "https://sandbox.zamzar.com/v1/files/$targetFileId/content";
-            $apiKey = env('ZAMZAR_API_KEY');
+            $endpoint = "https://api.easypdfcloud.com/v1/jobs/0000000001335B49/output/".$uploadFile->file_name;
 
             $ch = curl_init(); // Init curl
             curl_setopt($ch, CURLOPT_URL, $endpoint); // API endpoint
@@ -256,10 +306,10 @@ class APIController extends Controller
             fclose($fh);
 
             return response()->json([
-                'message' => 'Downloaded zamzar file ' . $targetFileName . ' to server successfully',
+                'message' => 'Downloaded EasyPDFCloud file ' . $targetFileName . ' to server successfully',
                 'htmlFilename' => $localFilename
             ]);
-        } catch (\Throwable $th) {
+        } catch (Exception $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);
@@ -288,7 +338,7 @@ class APIController extends Controller
     //             'message' => 'Splitting html file succeeded',
     //             'htmlCnt' => count($splitted)
     //         ]);
-    //     } catch (\Throwable $th) {
+    //     } catch (Exception $th) {
     //         return response()->json([
     //             'message' => $th->getMessage()
     //         ], 500);
@@ -335,7 +385,7 @@ class APIController extends Controller
     //         return response()->json([
     //             'message' => 'Translating html file succeeded'
     //         ]);
-    //     } catch (\Throwable $th) {
+    //     } catch (Exception $th) {
     //         return response()->json([
     //             'message' => $th->getMessage()
     //         ], 500);
@@ -366,7 +416,7 @@ class APIController extends Controller
     //             'message' => 'Merging htmls succeeded',
     //             'htmlFilename' => $transHtmlFilename
     //         ]);
-    //     } catch (\Throwable $th) {
+    //     } catch (Exception $th) {
     //         return response()->json([
     //             'message' => $th->getMessage()
     //         ], 500);
@@ -384,7 +434,7 @@ class APIController extends Controller
     //         $pdfFilename = public_path() . '/uploads/' . $uFileId . '/converted/' . $fName . '.pdf';
             
     //         return PDF::loadFile($htmlFilename)->save($pdfFilename)->stream('download.pdf');
-    //     } catch (\Throwable $th) {
+    //     } catch (Exception $th) {
     //         return response()->json([
     //             'message' => $th->getMessage()
     //         ], 500);

@@ -7,7 +7,7 @@
                     <v-select class="lang-select" :options="languages" :reduce="language => language.code" label="label" v-model="sourceLanguage" :disabled="isConverting" placeholder="Select source language"></v-select>
                     <v-select class="lang-select mt-3" :options="languages" :reduce="language => language.code" label="label" v-model="targetLanguage" :disabled="isConverting" placeholder="Select target language"></v-select>
                     <div class="flex-1 form-ctrl mt-3">
-                        <form enctype="multipart/form-data" novalidate >
+                        <form enctype="multipart/form-data" novalidate>
                             <div class="dropbox">
                                 <input type="file" name="file" :disabled="isConverting" @change="filesChange($event.target.files)" accept="*.*" class="input-file">
                                 <div class="dropbox-inner">
@@ -39,7 +39,7 @@
 
 <script>
     import languages from '../languages.js';
-    import { fileUpload, fileConvert, jobCheck, fileDownload, htmlFileSplit, htmlPdfConvert, htmlTranslate, htmlsMerge } from '../utils/fileUtil';
+    import { fileUpload, fileConvert, jobCheck, fileDownload } from '../utils/fileUtil';
     import { wait } from '../utils/otherUtil';
 
     // const STATUS_INITIAL = 0, STATUS_UPLOADING = 1, STATUS_CONVERTING = 2, STATUS_TRANSLATING = 3, STATUS_INVERTING = 4, STATUS_SUCCESS = 5, STATUS_FAILED = 6;
@@ -77,45 +77,44 @@
             },
             uploadFile() {
                 this.isConverting = true;
-                // this.currentStatus = STATUS_UPLOADING;
-                this.message = "File uploading to server...";
-
+                this.message = 'File uploading...';
                 this.formData.append('fromLang', this.sourceLanguage);
                 this.formData.append('toLang', this.targetLanguage);
                 fileUpload(this.formData)
                 .then(res => {
                     if (res.status == 200) {
                         this.uFileId = res.data.uFileId;
-                        this.message = res.data.message;
+                        this.message = 'File uploaded successfully.';
                         this.convertFile();
+                    } else {
+                        this.isConverting = false;
+                        this.message = 'File uploading failed. Please try again.';
                     }
                 })
                 .catch(err => {
-                    this.message = 'File uploading to server failed. Try again to upload file.';
+                    console.log(err);
+                    this.message = 'File uploading failed. Please try again.';
                     this.isConverting = false;
                 });
             },
             convertFile() {
-                this.message = "File uploading to easyPDF cloud...";
-
+                this.message = "File converting...";
                 const formData = new FormData();
                 formData.append('uFileId', this.uFileId);
                 fileConvert(formData)
                 .then(res => {
                     if (res.status == 200) {
-                        this.jobId = res.data.jobId;
-                        this.message = res.data.message;
-                        if (this.timer) {
-                            clearInterval(this.timer);
-                            this.timer = null;
-                        }
-                        this.isCheckingJob = false;
-                        this.timer = setInterval(this.checkJob, 2500);
+                        this.message = 'File converted successfully.';
+                        this.isConverting = false;
+                        window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
+                    } else {
+                        this.message = 'File converting failed. Please try again.';
+                        this.isConverting = false;
                     }
                 })
                 .catch(err => {
                     console.log(err);
-                    this.message = 'File uploading to easyPDF cloud failed. easyPDF cloud job not started. Try again to upload file.';
+                    this.message = 'File converting failed. Please try again.';
                     this.isConverting = false;
                 });
             },

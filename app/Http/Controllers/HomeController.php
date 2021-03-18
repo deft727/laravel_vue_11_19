@@ -27,7 +27,9 @@ class HomeController extends Controller
 
         $content = file_get_contents($htmlFilename);
         $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
         $dom->loadHTML($content);
+        libxml_clear_errors();
         $head = $dom->getElementsByTagName("head")->item(0);
 
         $style = $dom->createElement('style');

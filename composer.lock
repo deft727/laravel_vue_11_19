@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3d97105f362f09251313ac19d1776bcc",
+    "content-hash": "8a8248df7f5d9d738e724b0955aa9b1e",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -1570,6 +1570,61 @@
                 }
             ],
             "time": "2020-10-18T11:50:25+00:00"
+        },
+        {
+            "name": "marioblazek/easy-pdf-cloud",
+            "version": "v0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/MarioBlazek/easy-pdf-cloud.git",
+                "reference": "89de6e18328f537995de312d0706ad200b582644"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/MarioBlazek/easy-pdf-cloud/zipball/89de6e18328f537995de312d0706ad200b582644",
+                "reference": "89de6e18328f537995de312d0706ad200b582644",
+                "shasum": ""
+            },
+            "require": {
+                "ext-mbstring": "*",
+                "php": ">=5.6.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "~2.0",
+                "phpunit/phpunit": "^6.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Bcl\\EasyPdfCloud\\": "lib"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "BCL Technologies",
+                    "homepage": "https://www.easypdfcloud.com"
+                }
+            ],
+            "description": "PHP easyPDF Cloud API",
+            "homepage": "https://github.com/MarioBlazek/easy-pdf-cloud",
+            "keywords": [
+                "bcl",
+                "easyPDF"
+            ],
+            "support": {
+                "issues": "https://github.com/MarioBlazek/easy-pdf-cloud/issues",
+                "source": "https://github.com/MarioBlazek/easy-pdf-cloud/tree/v0.3"
+            },
+            "time": "2018-04-13T10:54:41+00:00"
         },
         {
             "name": "monolog/monolog",

@@ -12,10 +12,13 @@ class APIController extends Controller
     public $_accessToken = '';
     public $_tokenType = '';
     public $workflows = [
-                'DOC' => '0000000000000004', // doc to pdf
-                'HTML' => '0000000006AE5CBE', // pdf to html
-                'PDF' => '0000000006AE5CC8', // html to pdf
-            ];
+        'CONVERTPDFTOWORD' => '0000000000000001',
+        'CONVERTPDFTOEXCEL' => '0000000000000002',
+        'CONVERTFILESTOPDF' => '0000000000000003',
+        'COMBINEFILESTOPDF' => '0000000000000004',
+        'TOHTML' => '0000000006AE5CBE',
+        'TOPDF' => '0000000006AE5CC8'
+    ];
     public $file_types = ['doc', 'docx', ];
     
     public function __construct()
@@ -23,7 +26,7 @@ class APIController extends Controller
         // $this->getToken();
     }
 
-    private function getToken() {
+    public function getToken() {
         try {
             $token_header = [
                 'Content-Type: application/x-www-form-urlencoded'
@@ -50,12 +53,15 @@ class APIController extends Controller
             $response = json_decode($body, true);
             $this->_accessToken = $response['access_token'];
             $this->_tokenType = $response['token_type'];
-            return true;
+            
+            return response()->json([
+                'message' => 'Got Token successfully from server'
+            ], 200);
         } catch (Exception $th) {
             throw new Exception($th->getMessage());
         }
     }
-    private function checkToken() {
+    public function checkToken() {
         try {
             echo $this->_accessToken;
             $token_header = [
@@ -81,30 +87,28 @@ class APIController extends Controller
         }
     }
 
-    private function callService($url, $params, $method = 'POST', $requireToken = true, $header = []) {
+    public function callService($url, $params = [], $header = [], $method = 'POST') {
         try {
-            if($requireToken && $this->_accessToken == '') {
+            if($this->_accessToken == '') {
                 // get token api
                 $this->getToken();
             }
             $ch = curl_init(); // Init curl
-            if($requireToken) {
-                // check token
-                $this->checkToken();
-                $token_header = [
-                    'Authorization: Bearer ' . $this->_accessToken
-                ];
-                $header = array_merge($token_header, $header);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, $header);    
-            }
+            // check token
+            $this->checkToken();
+            $token_header = [
+                'Authorization: Bearer ' . $this->_accessToken
+            ];
             curl_setopt($ch, CURLOPT_URL, $url); // API endpoint
+            $header = array_merge($token_header, $header);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
             if($method != 'GET') {
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params, '', '&'));
             }
             // curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false); // Enable the @ prefix for uploading files
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); // Return response as a string
-            curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ":"); // Set the API key as the basic auth username
+            // curl_setopt($ch, CURLOPT_USERPWD, $apiKey . ":"); // Set the API key as the basic auth username
             $body = curl_exec($ch);
             curl_close($ch);
     
@@ -139,7 +143,6 @@ class APIController extends Controller
             Storage::disk('uploads')->put('/' . $uploadFile->id . '/original/' . $fileName, file_get_contents($file));
 
             return response()->json([
-                'message' => 'File uploaded successfully to server',
                 'uFileId' => $uploadFile->id
             ], 200);
         } catch (Exception $th) {
@@ -157,47 +160,67 @@ class APIController extends Controller
             if (!$uploadFile) {
                 return response()->json([
                     'message' => 'File not exist on server'
-                ]);
+                ], 500);
             }
 
-            $ext = pathinfo($uploadFile->file_name, PATHINFO_EXTENSION);
-            $job_type = $workflows['HTML'];
+            // $ext = path1info($uploadFile->file_name, PATHINFO_EXTENSION);
+            $workflowId = $this->workflows['TOHTML'];
+            $fileName = $uploadFile->file_name;
+            $arr = explode('.', $fileName);
+            $fName = $arr[0];
             // if(in_array($ext, $this->file_types)) {
 
             // }
-            $endpoint = "https://api.easypdfcloud.com/v1/workflows/$job_type/jobs";
-            $sourceFilePath = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
-            
+            // $endpoint = "https://api.easypdfcloud.com/v1/workflows/$job_type/jobs";
+            $inputFileName = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
+            $outputFileName = public_path() . '/uploads/' . $uploadFile->id . '/html/' . $fName . '.html';
+
+            $client = new \Bcl\EasyPdfCloud\Client(env('PDFCLOUD_CLIENT_ID'), env('PDFCLOUD_CLIENT_SECRET'));
+            // Upload input file and start new job
+            $job = $client->startNewJobWithFilePath($workflowId, $inputFileName);
+            // Wait until job execution is completed
+            $result = $job->waitForJobExecutionCompletion();
+            // Save output to file
+            $outputDirname = dirname($outputFileName);
+            if (!is_dir($outputDirname)) {
+                mkdir($outputDirname, 0755, true);
+            }
+            $fh = fopen($outputFileName, "wb");
+            file_put_contents($outputFileName, $result->getFileData()->getContents());
+            fclose($fh);
+            return response()->json([
+                'message' => 'File converting started on easyPdfCloud'
+            ]);
             // Since PHP 5.5+ CURLFile is the preferred method for uploading files
-            if(function_exists('curl_file_create')) {
-                $sourceFile = curl_file_create($sourceFilePath);
-            } else {
-                $sourceFile = '@' . realpath($sourceFilePath);
-            }
+            // if(function_exists('curl_file_create')) {
+            //     $sourceFile = curl_file_create($sourceFilePath);
+            // } else {
+            //     $sourceFile = '@' . realpath($sourceFilePath);
+            // }
             
-            $header = ['Content-Type: multipart/form-data'];
-            $postData = array(
-                "file" => $sourceFile,
-                "start" => true,
-                "test" => true
-            );
+            // $header = ['Content-Type: multipart/form-data'];
+            // $postData = array(
+            //     "file" => $sourceFile,
+            //     "start" => true,
+            //     "test" => true
+            // );
             
-            $response = $this->callService($endpoint, $postData, 'POST', true, $header);
-            if(isset($response['jobID'])) {
-                $uploadFile->job_id = $response['jobID'];
-                $uploadFile->status = 'initialising';
-                $uploadFile->save();
-                return response()->json([
-                    'message' => 'File converting started', //  on easyPDFCloud
-                    'jobId' => $response['jobID']
-                ]);
-            }else{
-                $uploadFile->status = 'initialize failed';
-                $uploadFile->save();
-                return response()->json([
-                    'message' => 'File converting failed'
-                ], 500);
-            }
+            // $response = $this->callService($endpoint, $postData, $header);
+            // if(isset($response['jobID'])) {
+            //     $uploadFile->job_id = $response['jobID'];
+            //     $uploadFile->status = 'initialising';
+            //     $uploadFile->save();
+            //     return response()->json([
+            //         'message' => 'File converting started', //  on easyPDFCloud
+            //         'jobId' => $response['jobID']
+            //     ]);
+            // }else{
+            //     $uploadFile->status = 'initialize failed';
+            //     $uploadFile->save();
+            //     return response()->json([
+            //         'message' => 'File converting failed'
+            //     ], 500);
+            // }
 /*            $ch = curl_init(); // Init curl
             curl_setopt($ch, CURLOPT_URL, $endpoint); // API endpoint
             curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
@@ -243,7 +266,7 @@ class APIController extends Controller
             $jobId = $request->jobId;
           
             $endpoint = "https://api.easypdfcloud.com/v1/jobs/$jobId/event";
-            $response = $this->callService($endpoint, []);
+            $response = $this->callService($endpoint);
             if(isset($response['status'])) {
                 if ($response['status'] == 'completed') {
                     $uploadFile = UploadFile::find($uFileId);

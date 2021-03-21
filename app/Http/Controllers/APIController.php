@@ -145,10 +145,34 @@ class APIController extends Controller
             return response()->json([
                 'uFileId' => $uploadFile->id
             ], 200);
-        } catch (Exception $th) {
+        } catch (\Throwable $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);
+        }
+    }
+
+    public function convertEasyPdfCloud($workflowId, $inputFileName, $outputFileName) {
+        try {
+            $client = new \Bcl\EasyPdfCloud\Client(env('PDFCLOUD_CLIENT_ID'), env('PDFCLOUD_CLIENT_SECRET'));
+
+            $enableTestMode = true;
+
+            $job = $client->startNewJobWithFilePath($workflowId, $inputFileName, $enableTestMode);
+            // Wait until job execution is completed
+            $result = $job->waitForJobExecutionCompletion();
+            // Save output to file
+            $outputDirname = dirname($outputFileName);
+            if (!is_dir($outputDirname)) {
+                mkdir($outputDirname, 0755, true);
+            }
+            $fh = fopen($outputFileName, "wb");
+            file_put_contents($outputFileName, $result->getFileData()->getContents());
+            fclose($fh);
+            
+            return true;
+        } catch (\Throwable $th) {
+            return $th->getMessage();
         }
     }
 
@@ -163,34 +187,46 @@ class APIController extends Controller
                 ], 500);
             }
 
-            // $ext = path1info($uploadFile->file_name, PATHINFO_EXTENSION);
-            $workflowId = $this->workflows['TOHTML'];
             $fileName = $uploadFile->file_name;
             $arr = explode('.', $fileName);
             $fName = $arr[0];
-            // if(in_array($ext, $this->file_types)) {
 
+            $inputFileName = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
+
+            if ($uploadFile->file_type !== 'application/pdf') {
+                $workflowId = $this->workflows['CONVERTFILESTOPDF'];
+                
+                $outputFileName = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $fName . '.pdf';
+
+                $b = $this->convertEasyPdfCloud($workflowId, $inputFileName, $outputFileName);
+
+                if ($b === true) {
+                    $inputFileName = $outputFileName;
+                } else {
+                    return response()->json([
+                        'message' => $th->getMessage()
+                    ], 500);
+                }
+            }
+
+            // $ext = path1info($uploadFile->file_name, PATHINFO_EXTENSION);
+            $workflowId = $this->workflows['TOHTML'];
+            // if(in_array($ext, $this->file_types)) {
             // }
             // $endpoint = "https://api.easypdfcloud.com/v1/workflows/$job_type/jobs";
-            $inputFileName = public_path() . '/uploads/' . $uploadFile->id . '/original/' . $uploadFile->file_name;
+            
             $outputFileName = public_path() . '/uploads/' . $uploadFile->id . '/html/' . $fName . '.html';
 
-            $client = new \Bcl\EasyPdfCloud\Client(env('PDFCLOUD_CLIENT_ID'), env('PDFCLOUD_CLIENT_SECRET'));
-            // Upload input file and start new job
-            $job = $client->startNewJobWithFilePath($workflowId, $inputFileName);
-            // Wait until job execution is completed
-            $result = $job->waitForJobExecutionCompletion();
-            // Save output to file
-            $outputDirname = dirname($outputFileName);
-            if (!is_dir($outputDirname)) {
-                mkdir($outputDirname, 0755, true);
+            $b = $this->convertEasyPdfCloud($workflowId, $inputFileName, $outputFileName);
+            
+            if ($b === true) {
+                return response()->json([], 200);   
+            } else {
+                return response()->json([
+                    'message' => $th->getMessage()
+                ], 500);
             }
-            $fh = fopen($outputFileName, "wb");
-            file_put_contents($outputFileName, $result->getFileData()->getContents());
-            fclose($fh);
-            return response()->json([
-                'message' => 'File converting started on easyPdfCloud'
-            ]);
+            
             // Since PHP 5.5+ CURLFile is the preferred method for uploading files
             // if(function_exists('curl_file_create')) {
             //     $sourceFile = curl_file_create($sourceFilePath);
@@ -248,7 +284,7 @@ class APIController extends Controller
                 ], 500);
             }
             */
-        } catch (Exception $th) {
+        } catch (\Throwable $th) {
             return response()->json([
                 'message' => $th->getMessage()
             ], 500);

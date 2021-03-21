@@ -9,7 +9,9 @@
                     <div class="flex-1 form-ctrl mt-3">
                         <form enctype="multipart/form-data" novalidate>
                             <div class="dropbox">
-                                <input type="file" name="file" :disabled="isConverting" @change="filesChange($event.target.files)" accept="*.*" class="input-file">
+                                <input type="file" name="file" :disabled="isConverting" @change="filesChange($event.target.files)" 
+                                    accept=".pdf, .rtf, .doc, .docx, .xls, .xlsx, .ppt, .pptx, .txt, .text, .gif, .png, .jpg, .jpeg, .jpg, .jfif, .tif, .tiff" 
+                                    class="input-file">
                                 <div class="dropbox-inner">
                                     <div class="img-rt">
                                         <img src="../assets/img/upload.png" alt="upload image">
@@ -82,18 +84,18 @@
                 this.formData.append('toLang', this.targetLanguage);
                 fileUpload(this.formData)
                 .then(res => {
-                    if (res.status == 200) {
-                        this.uFileId = res.data.uFileId;
-                        this.message = 'File uploaded successfully.';
-                        this.convertFile();
-                    } else {
-                        this.isConverting = false;
-                        this.message = 'File uploading failed. Please try again.';
-                    }
+                    this.uFileId = res.data.uFileId;
+                    this.message = 'File uploaded successfully.';
+                    this.convertFile();
                 })
                 .catch(err => {
                     console.log(err);
-                    this.message = 'File uploading failed. Please try again.';
+                    const response = err.response;
+                    if (response.status === 500) {
+                        this.message = response.data.message;
+                    } else {
+                        this.message = 'File uploading failed. Please try again.';
+                    }
                     this.isConverting = false;
                 });
             },
@@ -103,18 +105,18 @@
                 formData.append('uFileId', this.uFileId);
                 fileConvert(formData)
                 .then(res => {
-                    if (res.status == 200) {
-                        this.message = 'File converted successfully.';
-                        this.isConverting = false;
-                        window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
-                    } else {
-                        this.message = 'File converting failed. Please try again.';
-                        this.isConverting = false;
-                    }
+                    this.message = 'File converted successfully.';
+                    this.isConverting = false;
+                    window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
                 })
                 .catch(err => {
                     console.log(err);
-                    this.message = 'File converting failed. Please try again.';
+                    const response = err.response;
+                    if (response.status === 500) {
+                        this.message = response.data.message;
+                    } else {
+                        this.message = 'File converting failed. Please try again.';
+                    }
                     this.isConverting = false;
                 });
             },

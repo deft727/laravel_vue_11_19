@@ -42,7 +42,7 @@ function fileDownload(formData) {
 //     return axios.get(url);
 // }
 
-export { 
+export {
     fileUpload, 
     fileConvert, 
     jobCheck, 

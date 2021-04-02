@@ -107,7 +107,8 @@
                 .then(res => {
                     this.message = 'File converted successfully.';
                     this.isConverting = false;
-                    window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
+                    this.downloadFile(res.data.url, res.data.fileName);
+                    // window.open(res.data.url, "_blank");
                 })
                 .catch(err => {
                     console.log(err);
@@ -151,28 +152,34 @@
                     this.timer = null;
                 });
             },
-            async downloadFile() {
-                try {
-                    this.message = 'Started downloading easyPDF cloud files to server...';
-                    const formData = new FormData();
-                    formData.append('uFileId', this.uFileId);
-                    fileDownload(formData)
-                    .then(res => {
-                        if (res.status == 200) {
-                            this.message = res.data.message;
-                            // this.htmlFilename = res.data.htmlFilename;
-                            window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
-                        }
-                    })
-                    .catch(err => {
-                        console.log(err);
-                    });
-                    this.message = `Downloading easyPDF cloud files to server finished...`;
-                } catch (err) {
-                    console.log(err);
-                    this.message = 'Downloading easyPDF cloud files to server failed. Try to upload file again.'
-                    this.isConverting = false;
-                }
+            async downloadFile(uri, name) {
+                var link = document.createElement("a");
+                link.download = name;
+                link.href = uri;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                // try {
+                //     this.message = 'Started downloading easyPDF cloud files to server...';
+                //     const formData = new FormData();
+                //     formData.append('uFileId', this.uFileId);
+                //     fileDownload(formData)
+                //     .then(res => {
+                //         if (res.status == 200) {
+                //             this.message = res.data.message;
+                //             // this.htmlFilename = res.data.htmlFilename;
+                //             window.open(window.location.origin + "/translation?uFileId=" + this.uFileId, "_blank");
+                //         }
+                //     })
+                //     .catch(err => {
+                //         console.log(err);
+                //     });
+                //     this.message = `Downloading easyPDF cloud files to server finished...`;
+                // } catch (err) {
+                //     console.log(err);
+                //     this.message = 'Downloading easyPDF cloud files to server failed. Try to upload file again.'
+                //     this.isConverting = false;
+                // }
             },
             // splitHtmlFile() {
             //     this.message = 'Splitting html file started';
